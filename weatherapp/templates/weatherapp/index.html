@@ -1,56 +1,140 @@
-{% load static %}
-
 <!DOCTYPE html>
+{% load static %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Weather Task</title>
     <link rel="stylesheet" href="{% static 'style.css' %}">
-    <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;600&display=swap"
-      rel="stylesheet"
-    />
 </head>
+<body>
+    <div class="container">
+        <h1 class="heading">Weather Task</h1>
 
-<body {% if exception_occurred %}
-    style="background-image: url('https://images.pexels.com/photos/3008509/pexels-photo-3008509.jpeg?auto=compress&cs=tinysrgb&w=1600');" 
-  {% else %}
-  style="background-image: url('{{ image_url }}');"
-  {% endif %}>
-  <div class="container">
-    <h1 class="heading">Weather App</h1>
-    
-    <form method="POST">
-      {% csrf_token %}
-      <input type="text" name="city" placeholder="Enter City">
-      <button type="submit" class="btn">Search</button>
-    </form>
-    <div class="weather">
-      <div class="left">
-        <h2 class="temp">{{ temp }}&#176; C</h2>
-        <h2 class="city">{{ city }}</h2>
-      </div>
-      <div class="right">
-        <div class="icon">
-          <p><img src="http://openweathermap.org/img/w/{{ icon }}.png" width="120px"></p>
+        <form method="POST" id="main-search-form">
+            {% csrf_token %}
+            <div class="search-container">
+                <input type="text" name="city" id="city-input" placeholder="Enter City" value="{{ city|default:'' }}">
+                <button type="submit" class="btn">Search</button>
+            </div>
+        </form>
+
+        <div class="weather">
+            <div class="weather-info">
+                <h2 class="temp">{{ temp|default:'--' }}°C</h2>
+                <h2 class="city">{{ city|default:'--' }}</h2>
+                <div class="date">{{ day|default:'Today' }}: {{ timestamp|default:'May 11, 2025' }}</div>
+            </div>
+            <div class="condition">
+                <p>{{ description|default:'--' }}</p>
+            </div>
         </div>
-        <div class="condition">
-          <p>{{ description }}</p>
-          <p>{{ day }}</p>
+
+        <h3>Recent Weather Data for {{ city|default:'--' }} (Last 6 Records)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>City</th>
+                    <th>Temperature (°C)</th>
+                    <th>Description</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for data in weather_data %}
+                    <tr>
+                        <td>{{ data.city }}</td>
+                        <td>{{ data.temperature }}</td>
+                        <td>{{ data.description }}</td>
+                        <td>{{ data.timestamp }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">No data available</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h3>Export Weather</h3>
+        <form method="GET" action="{% url 'export_weather_csv' %}">
+            <input type="hidden" name="city" value="{{ city|default:'' }}">
+            <div class="export-container">
+                <label>Start Date and Time (YYYY-MM-DD HH:MM):</label>
+                <input type="datetime-local" name="start_date" placeholder="2025-05-11T12:00" step="60">
+                <label>End Date and Time (YYYY-MM-DD HH:MM):</label>
+                <input type="datetime-local" name="end_date" placeholder="2025-05-11T14:00" step="60">
+                <button type="submit" class="btn">Export</button>
+            </div>
+        </form>
+
+        <h3>Siz Borishni Istagan Shaharlar</h3>
+        <div class="popular-cities">
+            <div class="popular-search-container">
+                <input type="text" id="popular-search" placeholder="Search City">
+                <button type="button" class="btn" onclick="searchCities()">Search</button>
+            </div>
+            <div class="city-list" id="city-list">
+                {% for popular_city in popular_cities %}
+                    <div class="city-item" onclick="selectCity('{{ popular_city }}')">{{ popular_city }}</div>
+                {% empty %}
+                    <div class="city-item">No cities available</div>
+                {% endfor %}
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 
+    {% if exception_occurred %}
+        <script>
+            window.onload = function() {
+                alert("City information is not available to Weather API");
+            }
+        </script>
+    {% endif %}
 
-{% if exception_occurred %}
     <script>
-        window.onload = function() {
-            alert("City information is not available to Weather API");
+        function selectCity(city) {
+            document.getElementById('city-input').value = city;
+            document.getElementById('main-search-form').submit();
+        }
+
+        function searchCities() {
+            const searchTerm = document.getElementById('popular-search').value.toLowerCase();
+            const cityItems = document.querySelectorAll('.city-item');
+            const originalCities = {{ popular_cities|safe }};
+
+            if (!searchTerm) {
+                const cityList = document.getElementById('city-list');
+                cityList.innerHTML = '';
+                originalCities.forEach(city => {
+                    const cityDiv = document.createElement('div');
+                    cityDiv.className = 'city-item';
+                    cityDiv.textContent = city;
+                    cityDiv.onclick = () => selectCity(city);
+                    cityList.appendChild(cityDiv);
+                });
+                return;
+            }
+
+            const filteredCities = originalCities.filter(city => city.toLowerCase().includes(searchTerm));
+            const cityList = document.getElementById('city-list');
+            cityList.innerHTML = '';
+
+            if (filteredCities.length > 0) {
+                filteredCities.forEach(city => {
+                    const cityDiv = document.createElement('div');
+                    cityDiv.className = 'city-item';
+                    cityDiv.textContent = city;
+                    cityDiv.onclick = () => selectCity(city);
+                    cityList.appendChild(cityDiv);
+                });
+            } else {
+                const noResultDiv = document.createElement('div');
+                noResultDiv.className = 'city-item';
+                noResultDiv.textContent = 'No cities found';
+                cityList.appendChild(noResultDiv);
+            }
         }
     </script>
-{% endif %}
-
 </body>
 </html>
